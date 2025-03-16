@@ -1,11 +1,11 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-
 import Icon from 'react-native-vector-icons/FontAwesome';
-import HomeScreen from '../screens/HomeScreen';
-import SearchScreen from '../screens/SearchScreen';
+import HomeStack from './HomeStack';
+import ProductStack from './ProductStack';
 import FavoriteScreen from '../screens/FavoriteScreen';
 import ProfileScreen from '../screens/ProfileScreen';
+import CartScreen from '../screens/CartScreen';
 
 const Tab = createBottomTabNavigator();
 
@@ -24,20 +24,32 @@ const BottomTabNavigator = () => {
             iconName = focused ? 'heart' : 'heart-o';
           } else if (route.name === 'Profile') {
             iconName = focused ? 'user' : 'user-o';
+          } else if (route.name === 'Cart') {
+            iconName = focused ? 'shopping-cart' : 'shopping-cart';
           }
 
           return <Icon name={iconName} size={size} color={color} />;
         },
+        tabBarLabel: () => null, // Ẩn nhãn trên tab bar
       })}
-      tabBarOptions={{
-        activeTintColor: 'tomato',
-        inactiveTintColor: 'gray',
-      }}
     >
-      <Tab.Screen name="Home" component={HomeScreen} />
-      <Tab.Screen name="Search" component={SearchScreen} />
+      <Tab.Screen
+        name="Home"
+        component={HomeStack}
+        options={{ headerShown: false }}
+      />
+      <Tab.Screen
+        name="Search"
+        component={ProductStack}
+        options={{ headerShown: false }}
+      />
       <Tab.Screen name="Favorite" component={FavoriteScreen} />
       <Tab.Screen name="Profile" component={ProfileScreen} />
+      <Tab.Screen
+        name="Cart"
+        component={CartScreen}
+        options={{ headerShown: false }}
+      />
     </Tab.Navigator>
   );
 };
