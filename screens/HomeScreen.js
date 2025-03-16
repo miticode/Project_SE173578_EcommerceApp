@@ -1,14 +1,16 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, FlatList, Image, TouchableOpacity, StyleSheet, ActivityIndicator, Button, ScrollView, SafeAreaView } from 'react-native';
+import { View, Text, FlatList, Image, TouchableOpacity, StyleSheet, ActivityIndicator, Button, SafeAreaView } from 'react-native';
 import axios from 'axios';
 import { API_BASE_URL } from '@env';
 import { Feather, AntDesign } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const HomeScreen = ({ navigation }) => {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-
+  const [favorites, setFavorites] = useState([]);
+  
   const fetchProducts = async () => {
     try {
       setLoading(true);
@@ -22,58 +24,74 @@ const HomeScreen = ({ navigation }) => {
       setLoading(false);
     }
   };
+  const loadFavorites = async () => {
+    try {
+      const userId = await AsyncStorage.getItem('userId');
+      if (!userId) {
+        console.error('User ID not found');
+        return;
+      }
+  
+      const storedFavorites = await AsyncStorage.getItem('favorites');
+      if (storedFavorites) {
+        const parsedFavorites = JSON.parse(storedFavorites);
+        const userFavorites = Array.isArray(parsedFavorites[userId]) ? parsedFavorites[userId] : [];
+        setFavorites(userFavorites);
+      } else {
+        setFavorites([]);
+      }
+    } catch (error) {
+      console.error('Error loading favorites:', error);
+      setFavorites([]);
+    }
+  };
+  
+
+  const saveFavorites = async (updatedFavorites) => {
+    try {
+      const userId = await AsyncStorage.getItem('userId');
+      const storedFavorites = await AsyncStorage.getItem('favorites');
+      let allFavorites = storedFavorites ? JSON.parse(storedFavorites) : {};
+      
+      allFavorites[userId] = updatedFavorites; // Lưu danh sách theo userId
+      await AsyncStorage.setItem('favorites', JSON.stringify(allFavorites));
+    } catch (error) {
+      console.error('Error saving favorites:', error);
+    }
+  };
+  
+
+  const toggleFavorite = async (productId) => {
+    if (!Array.isArray(favorites)) {
+      console.error('Favorites is not an array:', favorites);
+      return;
+    }
+  
+    const userId = await AsyncStorage.getItem('userId');
+    if (!userId) {
+      console.error('User ID not found');
+      return;
+    }
+  
+    const isFavorite = favorites.includes(productId);
+    let updatedFavorites = isFavorite
+      ? favorites.filter(id => id !== productId)
+      : [...favorites, productId];
+  
+    setFavorites(updatedFavorites);
+    await saveFavorites(updatedFavorites);
+  
+    // Cập nhật FavoriteScreen ngay lập tức bằng cách gọi sự kiện focus
+    navigation.navigate('Favorite');
+  };
+  
+  
+  
 
   useEffect(() => {
     fetchProducts();
+    loadFavorites();
   }, []);
-
-  const renderProductItem = ({ item, index }) => (
-    <TouchableOpacity
-      style={[styles.productItem, index % 2 === 0 ? { marginRight: 8 } : { marginLeft: 8 }]}
-      onPress={() => navigation.navigate('ProductDetail', { productId: item.id })}
-    >
-      <View style={styles.productImageContainer}>
-        <Image
-          source={{ uri: item.image }}
-          style={styles.productImage}
-          resizeMode="cover"
-        />
-        <TouchableOpacity style={styles.favoriteButton}>
-          <AntDesign name="heart" size={18} color="#d9d9d9" />
-        </TouchableOpacity>
-      </View>
-      <View style={styles.productDetails}>
-        <View style={styles.brandRatingContainer}>
-          <Text style={styles.brandName}>H&M</Text>
-          <View style={styles.ratingContainer}>
-            <AntDesign name="star" size={12} color="#FFD700" />
-            <Text style={styles.ratingText}>{index % 2 === 0 ? '4.9' : '4.8'}</Text>
-            <Text style={styles.reviewCount}>({index % 2 === 0 ? '136' : '178'})</Text>
-          </View>
-        </View>
-        <Text style={styles.productTitle} numberOfLines={2} ellipsizeMode="tail">
-          {index % 2 === 0 ? 'Oversized Fit Printed M...' : 'Printed Sweatshirt'}
-        </Text>
-        <View style={styles.priceContainer}>
-          <Text style={styles.productPrice}>${index % 2 === 0 ? '295.00' : '314.00'}</Text>
-          {index % 2 === 0 && <Text style={styles.originalPrice}>$550.00</Text>}
-        </View>
-      </View>
-    </TouchableOpacity>
-  );
-
-  const renderCategoryItem = ({ item }) => (
-    <TouchableOpacity style={styles.categoryItem}>
-      <View style={styles.categoryImageContainer}>
-        <Image 
-          source={{ uri: item.image }} 
-          style={styles.categoryImage} 
-          resizeMode="cover"
-        />
-      </View>
-      <Text style={styles.categoryText}>{item.name}</Text>
-    </TouchableOpacity>
-  );
 
   const categories = [
     { id: '1', name: 'Women', image: 'https://womanate.com/wp-content/uploads/2023/04/WATE_Salvadoran3.jpg' },
@@ -83,16 +101,16 @@ const HomeScreen = ({ navigation }) => {
     { id: '5', name: 'Baby', image: 'https://tse3.mm.bing.net/th?id=OIP.b8sXW1nuB7LPxCjgGu3clwAAAA&pid=Api&P=0&h=180' },
   ];
 
-  return (
-    <SafeAreaView style={styles.container}>
+  const renderHeader = () => (
+    <>
       {/* Header */}
       <View style={styles.header}>
-        <Image 
-          source={{ uri: 'https://img.freepik.com/premium-vector/circle-floral-fashion-store-hanger-logo-design-vector_680355-4.jpg' }} 
+        <Image
+          source={{ uri: 'https://img.freepik.com/premium-vector/circle-floral-fashion-store-hanger-logo-design-vector_680355-4.jpg' }}
           style={styles.logo}
           resizeMode="contain"
         />
-        <TouchableOpacity style={styles.cartButton}>
+       <TouchableOpacity style={styles.cartButton} onPress={() => navigation.navigate('Cart')}>
           <Feather name="shopping-bag" size={22} color="#000" />
           <View style={styles.cartBadge}>
             <Text style={styles.cartBadgeText}>2</Text>
@@ -100,78 +118,123 @@ const HomeScreen = ({ navigation }) => {
         </TouchableOpacity>
       </View>
 
-      <ScrollView style={styles.scrollContainer} showsVerticalScrollIndicator={true} contentContainerStyle={styles.scrollContentContainer}>
-        {/* Banner */}
-        <View style={styles.banner}>
-          <View style={styles.bannerContent}>
-            <Text style={styles.bannerTitle}>NEW COLLECTIONS</Text>
-            <Text style={styles.bannerSubtitle}>20% OFF</Text>
-            <TouchableOpacity style={styles.shopNowButton}>
-              <Text style={styles.shopNowButtonText}>SHOP NOW</Text>
-            </TouchableOpacity>
-          </View>
-          <Image 
-            source={{ uri: 'https://png.pngtree.com/png-vector/20240628/ourlarge/pngtree-top-saleclothesadvertising-images-fashion-luxury-models-girl-banner-png-image_12783563.png' }}
-            style={styles.bannerImage}
-            resizeMode="cover"
-          />
+      {/* Banner */}
+      <View style={styles.banner}>
+        <View style={styles.bannerContent}>
+          <Text style={styles.bannerTitle}>NEW COLLECTIONS</Text>
+          <Text style={styles.bannerSubtitle}>20% OFF</Text>
+          <TouchableOpacity style={styles.shopNowButton}>
+            <Text style={styles.shopNowButtonText}>SHOP NOW</Text>
+          </TouchableOpacity>
         </View>
+        <Image
+          source={{ uri: 'https://png.pngtree.com/png-vector/20240628/ourlarge/pngtree-top-saleclothesadvertising-images-fashion-luxury-models-girl-banner-png-image_12783563.png' }}
+          style={styles.bannerImage}
+          resizeMode="cover"
+        />
+      </View>
 
-        {/* Categories Section */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Shop By Category</Text>
-            <TouchableOpacity>
-              <Text style={styles.seeAll}>See All</Text>
-            </TouchableOpacity>
-          </View>
-          <FlatList
-            data={categories}
-            renderItem={renderCategoryItem}
-            keyExtractor={item => item.id}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.categoriesList}
-          />
+      {/* Categories Section */}
+      <View style={styles.section}>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Shop By Category</Text>
+          <TouchableOpacity>
+            <Text style={styles.seeAll}>See All</Text>
+          </TouchableOpacity>
         </View>
+        <FlatList
+          data={categories}
+          renderItem={renderCategoryItem}
+          keyExtractor={item => item.id}
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.categoriesList}
+        />
+      </View>
 
-        {/* Products Section */}
-        <View style={styles.section}>
+      {/* Products Section Header */}
+      <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Curated For You</Text>
           <TouchableOpacity>
             <Text style={styles.seeAll}>See All</Text>
           </TouchableOpacity>
         </View>
-        {loading ? (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#000" />
-            <Text style={styles.loadingText}>Loading products...</Text>
-          </View>
-        ) : error ? (
-          <View style={styles.errorContainer}>
-            <Text style={styles.errorText}>Error: {error}</Text>
-            <Button title="Retry" onPress={fetchProducts} color="#000" />
-          </View>
-        ) : (
-          <View style={styles.productsGrid}>
-            {products.length > 0 ? products.slice(0, 6).map((item, index) => (
-              <View key={item.id || index} style={{flex: 1}}>
-                {renderProductItem({item, index})}
-              </View>
-            )) : (
-              <View style={styles.emptyProductsContainer}>
-                <Text>No products available</Text>
-              </View>
-            )}
-          </View>
-        )}
       </View>
-      
-      {/* Add bottom padding view for better scrolling */}
-      <View style={{height: 40}} />
-      </ScrollView>
+    </>
+  );
 
+  const renderProductItem = ({ item, index }) => {
+    const isFavorite = Array.isArray(favorites) ? favorites.includes(item.id) : false;
+  
+    return (
+      <TouchableOpacity
+        style={styles.productItem}
+        onPress={() => navigation.navigate('ProductDetail', { productId: item.id })}
+      >
+        <View style={styles.productImageContainer}>
+          <Image source={{ uri: item.image }} style={styles.productImage} resizeMode="cover" />
+          <TouchableOpacity
+            style={styles.favoriteButton}
+            onPress={() => toggleFavorite(item.id)}
+          >
+            <AntDesign name={isFavorite ? 'heart' : 'hearto'} size={18} color={isFavorite ? '#e91e63' : '#d9d9d9'} />
+          </TouchableOpacity>
+        </View>
+        <View style={styles.productDetails}>
+          <Text style={styles.productTitle} numberOfLines={2}>{item.title}</Text>
+          <Text style={styles.productPrice}>{item.price}$</Text>
+        </View>
+      </TouchableOpacity>
+    );
+  };
+
+  const renderCategoryItem = ({ item }) => (
+    <TouchableOpacity style={styles.categoryItem}>
+      <View style={styles.categoryImageContainer}>
+        <Image
+          source={{ uri: item.image }}
+          style={styles.categoryImage}
+          resizeMode="cover"
+        />
+      </View>
+      <Text style={styles.categoryText}>{item.name}</Text>
+    </TouchableOpacity>
+  );
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#000" />
+          <Text style={styles.loadingText}>Loading products...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (error) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>Error: {error}</Text>
+          <Button title="Retry" onPress={fetchProducts} color="#000" />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <FlatList
+        data={products.slice(0, 6)}
+        renderItem={renderProductItem}
+        keyExtractor={item => item.id || item.toString()}
+        numColumns={2}
+        columnWrapperStyle={styles.productRow}
+        ListHeaderComponent={renderHeader}
+        contentContainerStyle={styles.scrollContentContainer}
+      />
     </SafeAreaView>
   );
 };
@@ -316,20 +379,24 @@ const styles = StyleSheet.create({
     color: 'red',
     marginBottom: 12,
   },
-  productsGrid: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
+  
   productItem: {
     backgroundColor: '#fff',
-    borderRadius: 8,
+    borderRadius: 12,
     overflow: 'hidden',
     marginBottom: 16,
-    flex: 1,
+    width: '48%', // Adjust width to allow proper spacing between items
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   productImageContainer: {
     position: 'relative',
-    height: 150,
+    height: 180, // Increased height for better visibility
+    width: '100%',
+    backgroundColor: '#f9f9f9',
   },
   productImage: {
     width: '100%',
@@ -339,52 +406,64 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 8,
     right: 8,
-    backgroundColor: 'rgba(255,255,255,0.7)',
-    borderRadius: 12,
-    width: 24,
-    height: 24,
+    backgroundColor: 'rgba(255,255,255,0.8)',
+    borderRadius: 15,
+    width: 30,
+    height: 30,
     justifyContent: 'center',
     alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 2,
   },
   productDetails: {
-    padding: 10,
+    padding: 12,
   },
   brandRatingContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 4,
+    marginBottom: 6,
   },
   brandName: {
     fontSize: 12,
     color: '#888',
+    fontWeight: '500',
   },
   ratingContainer: {
     flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: '#f8f8f8',
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    borderRadius: 12,
   },
   ratingText: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#000',
     marginLeft: 2,
+    fontWeight: '600',
   },
   reviewCount: {
-    fontSize: 11,
+    fontSize: 10,
     color: '#888',
     marginLeft: 2,
   },
   productTitle: {
     fontSize: 14,
-    fontWeight: '500',
-    marginBottom: 4,
+    fontWeight: '600',
+    marginBottom: 6,
     color: '#000',
+    height: 40, // Fixed height for 2 lines
   },
   priceContainer: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   productPrice: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: 'bold',
     color: '#e91e63',
   },
@@ -394,39 +473,50 @@ const styles = StyleSheet.create({
     textDecorationLine: 'line-through',
     marginLeft: 8,
   },
-  navbar: {
-    flexDirection: 'row',
-    backgroundColor: '#fff',
-    borderTopWidth: 1,
-    borderTopColor: '#eee',
-    paddingVertical: 10,
-  },
-  navItem: {
-    flex: 1,
+  emptyProductsContainer: {
+    width: '100%',
+    padding: 40,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: '#f5f5f5',
+    borderRadius: 8,
   },
-  navText: {
-    fontSize: 10,
-    marginTop: 4,
+  loadingContainer: {
+    padding: 40,
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 10,
     color: '#888',
+    fontWeight: '500',
   },
-  activeNavText: {
-    color: '#000',
+  errorContainer: {
+    padding: 30,
+    alignItems: 'center',
+    backgroundColor: '#fff1f0',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#ffccc7',
+  },
+  errorText: {
+    color: '#f5222d',
+    marginBottom: 15,
     fontWeight: '500',
   },
   scrollContentContainer: {
     paddingBottom: 40, // Add padding at the bottom
     flexGrow: 1, // Important for scrolling
   },
-  emptyProductsContainer: {
-    width: '100%',
-    padding: 20,
-    alignItems: 'center',
-  },
+ 
   productsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap', // Allow items to wrap to next line
+    justifyContent: 'space-between',
+  },
+  productsContainer: {
+    width: '100%',
+  },
+  productRow: {
     justifyContent: 'space-between',
   },
 });
