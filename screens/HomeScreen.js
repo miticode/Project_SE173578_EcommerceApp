@@ -53,8 +53,9 @@ const HomeScreen = ({ navigation }) => {
       const storedFavorites = await AsyncStorage.getItem('favorites');
       let allFavorites = storedFavorites ? JSON.parse(storedFavorites) : {};
       
-      allFavorites[userId] = updatedFavorites; // Lưu danh sách theo userId
+      allFavorites[userId] = updatedFavorites;
       await AsyncStorage.setItem('favorites', JSON.stringify(allFavorites));
+      console.log('Favorites saved:', allFavorites); // Thêm log để kiểm tra
     } catch (error) {
       console.error('Error saving favorites:', error);
     }
@@ -81,8 +82,8 @@ const HomeScreen = ({ navigation }) => {
     setFavorites(updatedFavorites);
     await saveFavorites(updatedFavorites);
   
-    // Cập nhật FavoriteScreen ngay lập tức bằng cách gọi sự kiện focus
-    navigation.navigate('Favorite');
+    // Tùy chọn: Điều hướng đến FavoriteScreen nếu cần
+    // navigation.navigate('Favorite');
   };
   
   
