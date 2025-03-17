@@ -35,29 +35,79 @@ const ProductDetailScreen = ({ route }) => {
     fetchProduct();
   }, [productId]);
 
+  // Hàm lưu giỏ hàng vào AsyncStorage
+  const saveCartToStorage = async (updatedCart) => {
+    try {
+      const userId = await AsyncStorage.getItem('userId');
+      if (!userId) return;
+
+      const storedCarts = await AsyncStorage.getItem('carts');
+      let allCarts = storedCarts ? JSON.parse(storedCarts) : {};
+      
+      allCarts[userId] = updatedCart; // Lưu giỏ hàng theo userId
+      await AsyncStorage.setItem('carts', JSON.stringify(allCarts));
+      console.log('Cart saved to AsyncStorage:', allCarts);
+    } catch (err) {
+      console.error('Error saving cart to AsyncStorage:', err);
+    }
+  };
+
   // Hàm xử lý Add to Cart
   const handleAddToCart = async () => {
     if (!product) return;
-  
+
     try {
       const userId = await AsyncStorage.getItem('userId');
       if (!userId) {
         Alert.alert('Error', 'User not logged in. Please login to add items to cart.');
         return;
       }
-  
+
+      // Lấy giỏ hàng hiện tại từ AsyncStorage
+      const storedCarts = await AsyncStorage.getItem('carts');
+      const allCarts = storedCarts ? JSON.parse(storedCarts) : {};
+      const userCart = Array.isArray(allCarts[userId]) ? allCarts[userId] : [];
+
+      // Kiểm tra xem sản phẩm đã có trong giỏ hàng chưa
+      const isProductInCart = userCart.some(item => item.id === productId);
+      let updatedCart;
+
+      if (isProductInCart) {
+        // Nếu sản phẩm đã có, tăng số lượng (nếu cần)
+        updatedCart = userCart.map(item =>
+          item.id === productId ? { ...item, quantity: (item.quantity || 1) + 1 } : item
+        );
+      } else {
+        // Nếu sản phẩm chưa có, thêm mới vào giỏ hàng
+        const newCartItem = {
+          id: productId,
+          title: product.title,
+          price: product.price,
+          image: product.image,
+          quantity: 1,
+        };
+        updatedCart = [...userCart, newCartItem];
+      }
+
+      // Lưu giỏ hàng cục bộ vào AsyncStorage
+      await saveCartToStorage(updatedCart);
+
+      // Gọi API để đồng bộ với server (nếu có kết nối)
       const cart = {
         userId: parseInt(userId, 10),
-        products: [{ id: productId }],
+        products: updatedCart.map(item => ({ id: item.id, quantity: item.quantity })),
       };
-  
-      const response = await axios.post(`${API_BASE_URL}/carts`, cart);
-      console.log('Add to Cart response:', response.data);
-  
-      const cartId = response.data.id; // Giả sử API trả về cartId
-      await AsyncStorage.setItem('cartId', cartId.toString());
-  
-      console.log('CartId saved to AsyncStorage:', cartId); // Kiểm tra log
+
+      try {
+        const response = await axios.post(`${API_BASE_URL}/carts`, cart);
+        console.log('Add to Cart response:', response.data);
+
+        const cartId = response.data.id; // Giả sử API trả về cartId
+        await AsyncStorage.setItem('cartId', cartId.toString());
+      } catch (apiError) {
+        console.warn('API call failed, cart saved locally:', apiError);
+      }
+
       Alert.alert('Success', `${product.title} has been added to your cart!`);
     } catch (err) {
       console.error('Add to Cart error:', err);

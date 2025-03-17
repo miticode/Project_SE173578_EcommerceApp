@@ -1,9 +1,9 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import { View, Text, FlatList, Image, StyleSheet, TouchableOpacity } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 import { API_BASE_URL } from '@env';
-import { AntDesign } from '@expo/vector-icons';
+import { AntDesign, Feather } from '@expo/vector-icons'; // Thêm Feather để dùng icon thùng rác
 import { useFocusEffect } from '@react-navigation/native';
 
 function FavoriteScreen({ navigation }) {
@@ -12,7 +12,7 @@ function FavoriteScreen({ navigation }) {
   const [error, setError] = useState(null);
 
   // Hàm fetch danh sách sản phẩm yêu thích
-  const fetchFavorites = async () => {
+  const fetchFavorites = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -23,11 +23,11 @@ function FavoriteScreen({ navigation }) {
         setLoading(false);
         return;
       }
-  
+
       const storedFavorites = await AsyncStorage.getItem('favorites');
       const parsedFavorites = storedFavorites ? JSON.parse(storedFavorites) : {};
       const favoriteIds = Array.isArray(parsedFavorites[userId]) ? parsedFavorites[userId] : [];
-  
+
       if (favoriteIds.length > 0) {
         const response = await axios.get(`${API_BASE_URL}/products`);
         const allProducts = response.data;
@@ -43,14 +43,41 @@ function FavoriteScreen({ navigation }) {
       setError(err.message || 'Failed to fetch favorites');
       setLoading(false);
     }
-  };
-  
+  }, []);
 
-  // Sử dụng useFocusEffect để cập nhật danh sách khi quay lại màn hình
-  useEffect(() => {
-    fetchFavorites();
-  }, [navigation]);
-  
+  // Hàm xóa sản phẩm khỏi danh sách yêu thích
+  const removeFavorite = async (productId) => {
+    try {
+      const userId = await AsyncStorage.getItem('userId');
+      if (!userId) {
+        console.error('User ID not found');
+        return;
+      }
+
+      const storedFavorites = await AsyncStorage.getItem('favorites');
+      const parsedFavorites = storedFavorites ? JSON.parse(storedFavorites) : {};
+      const favoriteIds = Array.isArray(parsedFavorites[userId]) ? parsedFavorites[userId] : [];
+
+      // Lọc bỏ productId khỏi danh sách
+      const updatedFavoriteIds = favoriteIds.filter(id => id !== productId);
+      parsedFavorites[userId] = updatedFavoriteIds;
+
+      // Lưu lại vào AsyncStorage
+      await AsyncStorage.setItem('favorites', JSON.stringify(parsedFavorites));
+
+      // Cập nhật state để UI phản ánh ngay lập tức
+      setFavoriteProducts(prevProducts => prevProducts.filter(product => product.id !== productId));
+    } catch (err) {
+      console.error('Error removing favorite:', err);
+    }
+  };
+
+  // Sử dụng useFocusEffect để cập nhật danh sách khi màn hình được focus
+  useFocusEffect(
+    useCallback(() => {
+      fetchFavorites();
+    }, [fetchFavorites])
+  );
 
   const renderProductItem = ({ item }) => (
     <TouchableOpacity
@@ -63,6 +90,13 @@ function FavoriteScreen({ navigation }) {
           style={styles.productImage}
           resizeMode="cover"
         />
+        {/* Nút Remove */}
+        <TouchableOpacity
+          style={styles.removeButton}
+          onPress={() => removeFavorite(item.id)}
+        >
+          <Feather name="trash-2" size={18} color="#fff" />
+        </TouchableOpacity>
       </View>
       <View style={styles.productDetails}>
         <Text style={styles.productTitle} numberOfLines={2} ellipsizeMode="tail">
@@ -127,10 +161,27 @@ const styles = StyleSheet.create({
     height: 180,
     width: '100%',
     backgroundColor: '#f9f9f9',
+    position: 'relative', // Để đặt nút Remove chính xác
   },
   productImage: {
     width: '100%',
     height: '100%',
+  },
+  removeButton: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    backgroundColor: 'rgba(255, 0, 0, 0.8)', // Màu đỏ nhạt
+    borderRadius: 15,
+    width: 30,
+    height: 30,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 2,
   },
   productDetails: {
     padding: 12,
